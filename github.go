@@ -287,12 +287,15 @@ func (m *GithubClient) GetPullRequest(prNumber, commitRef string) (*PullRequest,
 			PullRequest struct {
 				PullRequestObject
 				Commits struct {
-					Edges []struct {
-						Node struct {
-							Commit CommitObject
-						}
+					Nodes []struct {
+						Commit CommitObject
 					}
 				} `graphql:"commits(last:$commitsLast)"`
+				Labels struct {
+					Nodes []struct {
+						LabelObject
+					}
+				} `graphql:"labels(first:$labelsFirst)"`
 			} `graphql:"pullRequest(number:$prNumber)"`
 		} `graphql:"repository(owner:$repositoryOwner,name:$repositoryName)"`
 	}
@@ -302,6 +305,7 @@ func (m *GithubClient) GetPullRequest(prNumber, commitRef string) (*PullRequest,
 		"repositoryName":  githubv4.String(m.Repository),
 		"prNumber":        githubv4.Int(pr),
 		"commitsLast":     githubv4.Int(100),
+		"labelsFirst":     githubv4.Int(100),
 	}
 
 	// TODO: Pagination - in case someone pushes > 100 commits before the build has time to start :p
@@ -309,18 +313,27 @@ func (m *GithubClient) GetPullRequest(prNumber, commitRef string) (*PullRequest,
 		return nil, err
 	}
 
-	for _, c := range query.Repository.PullRequest.Commits.Edges {
-		if c.Node.Commit.OID == commitRef {
-			// Return as soon as we find the correct ref.
-			return &PullRequest{
+	pullRequest := PullRequest{}
+
+	for _, c := range query.Repository.PullRequest.Commits.Nodes {
+		if c.Commit.OID == commitRef {
+			pullRequest = PullRequest{
 				PullRequestObject: query.Repository.PullRequest.PullRequestObject,
-				Tip:               c.Node.Commit,
-			}, nil
+				Tip:               c.Commit,
+			}
+			// Return as soon as we find the correct ref.
+			break
+		} else {
+			// Return an error if the commit was not found
+			return nil, fmt.Errorf("commit with ref '%s' does not exist", commitRef)
 		}
 	}
 
-	// Return an error if the commit was not found
-	return nil, fmt.Errorf("commit with ref '%s' does not exist", commitRef)
+	for _, l := range query.Repository.PullRequest.Labels.Nodes {
+		pullRequest.Labels = append(pullRequest.Labels, l.LabelObject)
+	}
+
+	return &pullRequest, nil
 }
 
 // UpdateCommitStatus for a given commit (not supported by V4 API).
