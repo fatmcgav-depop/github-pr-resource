@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Get (business logic)
@@ -52,6 +53,12 @@ func Get(request GetRequest, github Github, git Git, outputDir string) (*GetResp
 	metadata.Add("author", pull.Tip.Author.User.Login)
 	metadata.Add("author_email", pull.Tip.Author.Email)
 	metadata.Add("state", string(pull.State))
+
+	labels := []string{}
+	for _, label := range pull.Labels {
+		labels = append(labels, label.Name)
+	}
+	metadata.Add("labels", strings.Join(labels, ","))
 
 	// Write version and metadata for reuse in PUT
 	path := filepath.Join(outputDir, ".git", "resource")
