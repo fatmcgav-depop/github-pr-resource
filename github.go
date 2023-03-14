@@ -314,19 +314,23 @@ func (m *GithubClient) GetPullRequest(prNumber, commitRef string) (*PullRequest,
 	}
 
 	pullRequest := PullRequest{}
+	commitRefFound := false
 
 	for _, c := range query.Repository.PullRequest.Commits.Nodes {
 		if c.Commit.OID == commitRef {
+			commitRefFound = true
 			pullRequest = PullRequest{
 				PullRequestObject: query.Repository.PullRequest.PullRequestObject,
 				Tip:               c.Commit,
 			}
 			// Return as soon as we find the correct ref.
 			break
-		} else {
-			// Return an error if the commit was not found
-			return nil, fmt.Errorf("commit with ref '%s' does not exist", commitRef)
 		}
+	}
+
+	if !commitRefFound {
+		// Return an error if the commit was not found
+		return nil, fmt.Errorf("commit with ref '%s' does not exist", commitRef)
 	}
 
 	for _, l := range query.Repository.PullRequest.Labels.Nodes {
